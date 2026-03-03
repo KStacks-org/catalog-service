@@ -18,8 +18,6 @@ import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.*;
-import java.util.function.Function;
-import java.util.stream.Collectors;
 
 @Component
 @RequiredArgsConstructor
@@ -99,13 +97,13 @@ public class DataLoader implements CommandLineRunner {
         for (CourseData cd : response.getData()) {
             String courseKey = cd.getCourseCode() + "-" + cd.getCourseNumber();
             Course course = new Course();
-            course.setId(courseKey);
+            course.setId(cd.getId());
             course.setCode(cd.getCourseCode());
             course.setNumber(cd.getCourseNumber());
             course.setTitle(cd.getTitle());
 
             if (cd.getSections() != null && !cd.getSections().isEmpty()) {
-                SectionData firstSection = cd.getSections().get(0);
+                SectionData firstSection = cd.getSections().getFirst();
                 course.setCredits(firstSection.getCredits());
                 course.setLevel(firstSection.getLevel());
             }
