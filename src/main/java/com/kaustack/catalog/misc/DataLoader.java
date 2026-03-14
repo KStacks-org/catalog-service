@@ -8,6 +8,10 @@ import org.springframework.boot.CommandLineRunner;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.http.client.HttpComponentsClientHttpRequestFactory;
+import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
+import org.apache.hc.client5.http.impl.classic.HttpClients;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
@@ -25,10 +29,8 @@ import java.util.*;
 public class DataLoader implements CommandLineRunner {
 
     private final TermRepository termRepository;
-    private final RestTemplate restTemplate;
-
-    // Using native JDBC for high-speed bulk inserts, bypassing JPA overhead
     private final JdbcTemplate jdbcTemplate;
+    private final ObjectMapper objectMapper;
 
     @Value("${app.data.load:false}")
     private boolean load;
@@ -39,8 +41,10 @@ public class DataLoader implements CommandLineRunner {
     @Value("${app.data.instructors-url}")
     private String instructorsUrl;
 
+    private RestTemplate customRestTemplate;
+
     @Override
-    public void run(String... args) {
+    public void run(String... args) throws Exception {
         if (!load) {
             log.info("Data loading is disabled (app.data.load=false). Skipping catalog sync.");
             return;
@@ -48,6 +52,10 @@ public class DataLoader implements CommandLineRunner {
 
         long startTime = System.currentTimeMillis();
         log.info("=== Starting High-Speed Catalog Data Sync ===");
+
+        CloseableHttpClient httpClient = HttpClients.custom().build();
+        HttpComponentsClientHttpRequestFactory factory = new HttpComponentsClientHttpRequestFactory(httpClient);
+        this.customRestTemplate = new RestTemplate(factory);
 
         loadCourses();
         loadInstructors();
@@ -66,18 +74,25 @@ public class DataLoader implements CommandLineRunner {
         log.info("Database cleared successfully!");
     }
 
-    private void loadCourses() {
+    private void loadCourses() throws Exception {
         log.info("[1/5] Fetching courses...");
-        CoursesApiResponse response = restTemplate.getForObject(coursesUrl, CoursesApiResponse.class);
 
-        if (response == null || !"success".equals(response.getStatus()) || response.getData() == null) {
+        String rawJson = customRestTemplate.getForObject(coursesUrl, String.class);
+
+        if (rawJson == null || rawJson.isBlank()) {
             log.warn("No valid course data received from API. Aborting course load.");
+            return;
+        }
+
+        CoursesApiResponse response = objectMapper.readValue(rawJson, CoursesApiResponse.class);
+
+        if (!"success".equals(response.getStatus()) || response.getData() == null) {
+            log.warn("API returned unsuccessful status or empty data. Aborting course load.");
             return;
         }
 
         log.info("[2/5] Successfully downloaded {} courses.", response.getData().size());
 
-        // Data secured in memory. Safe to nuke the remote database now.
         nukeDatabase();
 
         log.info("Saving new Term data via JPA...");
@@ -142,8 +157,9 @@ public class DataLoader implements CommandLineRunner {
                 if (sd.getSchedules() != null) {
                     for (ScheduleData schd : sd.getSchedules()) {
                         Schedule schedule = new Schedule();
-                        schedule.setId(UUID.randomUUID().toString()); // Manual UUID generation for JDBC
+                        schedule.setId(UUID.randomUUID().toString());
                         schedule.setSection(section);
+                        schedule.setInstructor(instructor);
                         schedule.setType(schd.getType());
                         schedule.setStartTime(schd.getStartTime());
                         schedule.setEndTime(schd.getEndTime());
@@ -161,7 +177,6 @@ public class DataLoader implements CommandLineRunner {
 
         int batchSize = 1500;
 
-        // 1. Blast Instructors
         log.info("  -> Pushing {} Instructors...", instructorsToSave.size());
         jdbcTemplate.batchUpdate("INSERT INTO instructor (id, name, email) VALUES (?, ?, ?)",
                 new ArrayList<>(instructorsToSave.values()), batchSize, (ps, inst) -> {
@@ -170,7 +185,6 @@ public class DataLoader implements CommandLineRunner {
                     ps.setString(3, inst.getEmail());
                 });
 
-        // 2. Blast Courses
         log.info("  -> Pushing {} Courses...", coursesToSave.size());
         jdbcTemplate.batchUpdate("INSERT INTO course (id, code, number, title, credits, level) VALUES (?, ?, ?, ?, ?, ?)",
                 new ArrayList<>(coursesToSave.values()), batchSize, (ps, c) -> {
@@ -182,7 +196,6 @@ public class DataLoader implements CommandLineRunner {
                     ps.setString(6, c.getLevel());
                 });
 
-        // 3. Blast Sections
         log.info("  -> Pushing {} Sections...", sectionsToSave.size());
         jdbcTemplate.batchUpdate("INSERT INTO section (id, crn, term_id, course_id, instructor_id, code, branch, schedule_type, instruction_method, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 sectionsToSave, batchSize, (ps, s) -> {
@@ -199,9 +212,9 @@ public class DataLoader implements CommandLineRunner {
                     ps.setTimestamp(11, s.getUpdatedAt() != null ? Timestamp.valueOf(s.getUpdatedAt()) : null);
                 });
 
-        // 4. Blast Schedules
         log.info("  -> Pushing {} Schedules...", schedulesToSave.size());
-        jdbcTemplate.batchUpdate("INSERT INTO schedule (id, type, start_time, end_time, raw_time, days, location, date_range, section_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+
+        jdbcTemplate.batchUpdate("INSERT INTO schedule (id, type, start_time, end_time, raw_time, days, location, date_range, section_id, instructor_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 schedulesToSave, batchSize, (ps, sch) -> {
                     ps.setString(1, sch.getId());
                     ps.setString(2, sch.getType());
@@ -212,17 +225,26 @@ public class DataLoader implements CommandLineRunner {
                     ps.setString(7, sch.getLocation());
                     ps.setString(8, sch.getDateRange());
                     ps.setString(9, sch.getSection().getId());
+                    ps.setString(10, sch.getInstructor() != null ? sch.getInstructor().getId() : null);
                 });
 
         log.info("[5/5] Phase 1 completed instantly via native network batching.");
     }
 
-    private void loadInstructors() {
+    private void loadInstructors() throws Exception {
         log.info("[1/2] Fetching extended instructor details from API...");
-        InstructorsApiResponse response = restTemplate.getForObject(instructorsUrl, InstructorsApiResponse.class);
 
-        if (response == null || !"success".equals(response.getStatus()) || response.getData() == null) {
+        String rawJson = customRestTemplate.getForObject(instructorsUrl, String.class);
+
+        if (rawJson == null || rawJson.isBlank()) {
             log.warn("No valid instructor data received from API.");
+            return;
+        }
+
+        InstructorsApiResponse response = objectMapper.readValue(rawJson, InstructorsApiResponse.class);
+
+        if (!"success".equals(response.getStatus()) || response.getData() == null) {
+            log.warn("API returned unsuccessful status or empty data.");
             return;
         }
 
@@ -258,6 +280,12 @@ public class DataLoader implements CommandLineRunner {
                 });
 
         jdbcTemplate.batchUpdate("UPDATE section SET instructor_id = ? WHERE id = ?",
+                sectionsToLink, batchSize, (ps, sec) -> {
+                    ps.setString(1, sec.getInstructor().getId());
+                    ps.setString(2, sec.getId());
+                });
+
+        jdbcTemplate.batchUpdate("UPDATE schedule SET instructor_id = ? WHERE section_id = ?",
                 sectionsToLink, batchSize, (ps, sec) -> {
                     ps.setString(1, sec.getInstructor().getId());
                     ps.setString(2, sec.getId());

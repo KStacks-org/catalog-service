@@ -34,10 +34,20 @@ public class InstructorController {
             @PathVariable String instructorId,
             @RequestParam(required = false) String termCode
     ) {
-        Map<String, Object> instructorData = catalogService.getInstructorDetails(instructorId, termCode);
-        return ResponseEntity.ok(Map.of(
-                "status", "success",
-                "data", instructorData
-        ));
+        try {
+            Map<String, Object> instructorData = catalogService.getInstructorDetails(instructorId, termCode);
+
+            return ResponseEntity.ok(Map.of(
+                    "status", "success",
+                    "data", instructorData
+            ));
+
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(org.springframework.http.HttpStatus.NOT_FOUND)
+                    .body(Map.of(
+                            "status", "error",
+                            "message", e.getMessage()
+                    ));
+        }
     }
 }
