@@ -8,14 +8,13 @@ import org.springframework.boot.CommandLineRunner;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestTemplate;
-import org.springframework.http.client.HttpComponentsClientHttpRequestFactory;
-import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
-import org.apache.hc.client5.http.impl.classic.HttpClients;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
+import tools.jackson.databind.ObjectMapper;
 
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+
 
 import java.sql.Timestamp;
 import java.time.Instant;
@@ -53,9 +52,7 @@ public class DataLoader implements CommandLineRunner {
         long startTime = System.currentTimeMillis();
         log.info("=== Starting High-Speed Catalog Data Sync ===");
 
-        CloseableHttpClient httpClient = HttpClients.custom().build();
-        HttpComponentsClientHttpRequestFactory factory = new HttpComponentsClientHttpRequestFactory(httpClient);
-        this.customRestTemplate = new RestTemplate(factory);
+        this.customRestTemplate = new RestTemplate(new SimpleClientHttpRequestFactory());
 
         loadCourses();
         loadInstructors();
