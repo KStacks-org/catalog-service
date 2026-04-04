@@ -8,9 +8,12 @@ services:
       SPRING_PROFILES_ACTIVE: prod
 
       # Database configuration
-      DATABASE_URL: ${DATABASE_URL}
-      DATABASE_USERNAME: ${DATABASE_USERNAME}
-      DATABASE_PASSWORD: ${DATABASE_PASSWORD}
+      DB_HOST: ${DB_HOST:-localhost}
+      DB_PORT: ${DB_PORT:-5432}
+      DB_NAME: ${DB_NAME:-catalog}
+      DB_USER: ${DB_USER:-catalog_user}
+      DB_PASS: ${DB_PASS:-catalog_password}
+      DB_DDL_AUTO: ${DB_DDL_AUTO:-validate}
 
       # Data loader
       LOAD_DATA: ${LOAD_DATA:-false}
