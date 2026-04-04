@@ -12,7 +12,6 @@ import org.springframework.web.bind.annotation.*;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/courses")
@@ -41,18 +40,28 @@ public class CourseController {
 
     @GetMapping("/{courseId}")
     public ResponseEntity<Map<String, Object>> getCourseById(@PathVariable String courseId) {
-        Course course = catalogService.getCourseById(courseId);
+        try {
+            Course course = catalogService.getCourseById(courseId);
 
-        Map<String, Object> courseData = new LinkedHashMap<>();
-        courseData.put("id", course.getId());
-        courseData.put("code", course.getCode());
-        courseData.put("number", course.getNumber());
-        courseData.put("title", course.getTitle());
+            Map<String, Object> courseData = new LinkedHashMap<>();
+            courseData.put("id", course.getId());
+            courseData.put("code", course.getCode());
+            courseData.put("number", course.getNumber());
+            courseData.put("title", course.getTitle());
+            courseData.put("credits", course.getCredits());
 
-        return ResponseEntity.ok(Map.of(
-                "status", "success",
-                "data", courseData
-        ));
+            return ResponseEntity.ok(Map.of(
+                    "status", "success",
+                    "data", courseData
+            ));
+
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(org.springframework.http.HttpStatus.NOT_FOUND)
+                    .body(Map.of(
+                            "status", "error",
+                            "message", "Course not found with ID: " + courseId
+                    ));
+        }
     }
 
     @GetMapping("/{courseId}/sections")
@@ -61,9 +70,23 @@ public class CourseController {
             @RequestParam(required = false) String termCode,
             @RequestParam(required = false) String gender
     ) {
-        List<Section> sections = catalogService.getSectionsByCourse(termCode, courseId, gender);
-        List<SectionDTO> dtos = sections.stream().map(mapper::toDTO).toList();
+        try {
+            catalogService.getCourseById(courseId);
 
-        return ResponseEntity.ok(Map.of("status", "success", "data", dtos));
+            List<Section> sections = catalogService.getSectionsByCourse(termCode, courseId, gender);
+            List<SectionDTO> dtos = sections.stream().map(mapper::toDTO).toList();
+
+            return ResponseEntity.ok(Map.of(
+                    "status", "success",
+                    "data", dtos
+            ));
+
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(org.springframework.http.HttpStatus.NOT_FOUND)
+                    .body(Map.of(
+                            "status", "error",
+                            "message", e.getMessage()
+                    ));
+        }
     }
 }

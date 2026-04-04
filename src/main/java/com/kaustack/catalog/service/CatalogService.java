@@ -29,6 +29,7 @@ public class CatalogService {
 
     @Autowired
     private TermRepository termRepository;
+
     @Autowired
     private ScheduleRepository scheduleRepository;
 
@@ -36,10 +37,28 @@ public class CatalogService {
         Term term = resolveTerm(termCode);
         List<Course> courses = sectionRepository.findUniqueCoursesByTerm(term.getId());
 
+        String normalizedQ = normalizeSearchText(q);
+
+        String[] queryTokens = normalizedQ.isEmpty() ? new String[0] : normalizedQ.split("[\\s\\-]+");
+
         return courses.stream()
-                .filter(c -> q == null ||
-                        c.getCode().toLowerCase().contains(q.toLowerCase()) ||
-                        c.getTitle().toLowerCase().contains(q.toLowerCase()))
+                .filter(c -> {
+                    if (queryTokens.length == 0) return true;
+
+                    String searchableString = normalizeSearchText(
+                            c.getCode() + c.getNumber() + " " +
+                                    c.getCode() + " " +
+                                    c.getNumber() + " " +
+                                    c.getTitle()
+                    );
+
+                    for (String token : queryTokens) {
+                        if (!searchableString.contains(token)) {
+                            return false;
+                        }
+                    }
+                    return true;
+                })
                 .map(c -> {
                     Map<String, Object> map = new LinkedHashMap<>();
                     map.put("id", c.getId());
@@ -47,10 +66,22 @@ public class CatalogService {
                     map.put("number", c.getNumber());
                     map.put("title", c.getTitle());
                     map.put("fullCode", c.getCode() + "-" + c.getNumber());
+                    map.put("credits", c.getCredits());
                     return map;
                 })
                 .sorted(Comparator.comparing(m -> (String) m.get("fullCode")))
                 .collect(Collectors.toList());
+    }
+
+    // Add this helper method down at the bottom of your class
+    private String normalizeSearchText(String input) {
+        if (input == null) return "";
+        return input.toLowerCase()
+                .replace("أ", "ا")
+                .replace("إ", "ا")
+                .replace("آ", "ا")
+                .replace("ة", "ه")
+                .replace("ي", "ى");
     }
 
     public List<Section> getSectionsByCourse(String termCode, String courseId, String gender) {

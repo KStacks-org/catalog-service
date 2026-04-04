@@ -19,6 +19,9 @@ public class Course {
     private String code;
     private String number;
 
+    private String level;
+    private Integer credits;
+
     @OneToMany(mappedBy = "course")
     @JsonIgnoreProperties("course")
     private List<Section> sections;

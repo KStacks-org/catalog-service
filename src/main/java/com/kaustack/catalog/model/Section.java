@@ -35,9 +35,6 @@ public class Section {
 
     private String instructionMethod;
 
-    private String level;
-    private Integer credits;
-
     @OneToMany(mappedBy = "section", cascade = CascadeType.ALL)
     @JsonIgnoreProperties("section")
     private List<Schedule> schedules;

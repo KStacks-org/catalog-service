@@ -6,6 +6,9 @@ import lombok.Data;
 
 @Entity
 @Data
+@Table(indexes = {
+        @Index(name = "idx_schedule_section_id", columnList = "section_id")
+})
 public class Schedule {
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
@@ -20,15 +23,18 @@ public class Schedule {
     private String rawTime;
 
     private String days;
+
     private String location;
 
     private String dateRange;
 
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "section_id")
     @JsonIgnoreProperties("schedules")
     private Section section;
 
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "instructor_id")
     @JsonIgnoreProperties("schedules")
     private Instructor instructor;
 }

@@ -17,7 +17,6 @@ public class CatalogMapper {
         dto.setSectionCode(section.getCode());
         dto.setBranch(section.getBranch());
         dto.setScheduleType(section.getScheduleType());
-        dto.setCredits(section.getCredits());
 
         if (section.getCourse() != null) {
             dto.setCourseTitle(section.getCourse().getTitle());
