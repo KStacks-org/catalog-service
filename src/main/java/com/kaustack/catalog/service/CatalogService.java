@@ -340,7 +340,7 @@ public class CatalogService {
             return termRepository.findByTermCode(termCode)
                     .orElseThrow(() -> new IllegalArgumentException("Term not found: " + termCode));
         }
-        return termRepository.findTopByOrderByUpdatedAtDesc()
+        return termRepository.findTopByOrderByTermCodeDesc()
                 .orElseThrow(() -> new IllegalArgumentException("No terms found in database"));
     }
 

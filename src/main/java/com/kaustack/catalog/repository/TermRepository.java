@@ -10,6 +10,6 @@ import java.util.Optional;
 public interface TermRepository extends JpaRepository<Term, String> {
     Optional<Term> findByTermCode(String termCode);
 
-    // Helper to find the latest updated term
-    Optional<Term> findTopByOrderByUpdatedAtDesc();
+    // Term codes sort chronologically (e.g. 202701, 202702).
+    Optional<Term> findTopByOrderByTermCodeDesc();
 }
