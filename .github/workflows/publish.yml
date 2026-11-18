@@ -1,0 +1,33 @@
+name: Build and publish
+
+on:
+  push:
+    branches: [dev, prod]
+    tags: ['v*']
+  pull_request:
+    branches: [dev, prod]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    permissions:
+      contents: read
+      packages: write
+    uses: KStacks-org/infra/.github/workflows/java.yml@15c5ba977be8efafd88e5ede7fc95bb49f574efa
+
+  deploy:
+    needs: build
+    uses: KStacks-org/infra/.github/workflows/deploy.yml@15c5ba977be8efafd88e5ede7fc95bb49f574efa
+    with:
+      app: catalog-service
+      image-tag: ${{ needs.build.outputs.image-tag }}
+      image-digest: ${{ needs.build.outputs.image-digest }}
+    secrets:
+      INFRA_PAT: ${{ secrets.INFRA_PAT }}
