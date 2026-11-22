@@ -20,11 +20,11 @@ jobs:
     permissions:
       contents: read
       packages: write
-    uses: KStacks-org/infra/.github/workflows/java.yml@e6f2cfbaf8144146cab38d0ca8cdb0788c7008f2
+    uses: KStacks-org/infra/.github/workflows/java.yml@ee06961c76b5f7735de3a4538e627221b9b58d53
 
   deploy:
     needs: build
-    uses: KStacks-org/infra/.github/workflows/deploy.yml@e6f2cfbaf8144146cab38d0ca8cdb0788c7008f2
+    uses: KStacks-org/infra/.github/workflows/deploy.yml@ee06961c76b5f7735de3a4538e627221b9b58d53
     with:
       image-tag: ${{ needs.build.outputs.image-tag }}
     secrets:
